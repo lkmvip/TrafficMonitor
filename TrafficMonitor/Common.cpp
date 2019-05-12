@@ -165,17 +165,17 @@ CString CCommon::DataSizeToString(unsigned int size, const PublicSettingData& cf
 	return str;
 }
 
-CString CCommon::DataSizeToString(unsigned int size)
+CString CCommon::DataSizeToString(unsigned long long size)
 {
 	CString str;
 	if (size < 1024 * 10)					//10KB以下以KB为单位，保留2位小数
-		str.Format(_T("%.2f KB"), size / 1024.0f);
+		str.Format(_T("%.2f KB"), size / 1024.0);
 	else if (size < 1024 * 1024)			//1MB以下以KB为单位，保留1位小数
-		str.Format(_T("%.1f KB"), size / 1024.0f);
+		str.Format(_T("%.1f KB"), size / 1024.0);
 	else if (size < 1024 * 1024 * 1024)		//1GB以下以MB为单位，保留2位小数
-		str.Format(_T("%.2f MB"), size / 1024.0f / 1024.0f);
+		str.Format(_T("%.2f MB"), size / 1024.0 / 1024.0);
 	else
-		str.Format(_T("%.2f GB"), size / 1024.0f / 1024.0f / 1024.0f);
+		str.Format(_T("%.2f GB"), size / 1024.0 / 1024.0 / 1024.0);
 	return str;
 }
 
@@ -628,6 +628,29 @@ CString CCommon::LoadText(LPCTSTR front_str, UINT id, LPCTSTR back_str)
 	if (front_str != nullptr)
 		str = front_str + str;
 	return str;
+}
+
+CString CCommon::StringFormat(LPCTSTR format_str, const std::initializer_list<CVariant>& paras)
+{
+	CString str_rtn = format_str;
+	int index = 1;
+	for (const auto& para : paras)
+	{
+		CString para_str = para.ToString();
+		CString format_para;
+		format_para.Format(_T("<%%%d%%>"), index);
+		str_rtn.Replace(format_para, para_str);
+
+		index++;
+	}
+	return str_rtn;
+}
+
+CString CCommon::LoadTextFormat(UINT id, const std::initializer_list<CVariant>& paras)
+{
+	CString str;
+	str.LoadString(id);
+	return StringFormat(str.GetString(), paras);
 }
 
 CString CCommon::IntToString(int n, bool thousand_separation, bool is_unsigned)

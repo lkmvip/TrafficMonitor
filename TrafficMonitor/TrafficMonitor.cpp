@@ -5,6 +5,7 @@
 #include "stdafx.h"
 #include "TrafficMonitor.h"
 #include "TrafficMonitorDlg.h"
+#include "crashtool.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -28,6 +29,7 @@ CTrafficMonitorApp::CTrafficMonitorApp()
 
 	// TODO: 在此处添加构造代码，
 	// 将所有重要的初始化放置在 InitInstance 中
+	CRASHREPORT::StartCrashReport();
 }
 
 void CTrafficMonitorApp::LoadConfig()
@@ -96,6 +98,7 @@ void CTrafficMonitorApp::LoadConfig()
 
 	//任务栏窗口设置
 	m_taskbar_data.back_color = ini.GetInt(_T("task_bar"), _T("task_bar_back_color"), 0);
+	m_taskbar_data.transparent_color = ini.GetInt(_T("task_bar"), _T("transparent_color"), 0);
 	//m_taskbar_data.text_color = GetPrivateProfileInt(_T("task_bar"), _T("task_bar_text_color"), 0x00ffffffU, m_config_path.c_str());
 	ini.GetIntArray(_T("task_bar"), _T("task_bar_text_color"), (int*)m_taskbar_data.text_colors, TASKBAR_COLOR_NUM, 0x00ffffffU);
 	m_taskbar_data.specify_each_item_color = ini.GetBool(L"task_bar", L"specify_each_item_color", false);
@@ -134,6 +137,8 @@ void CTrafficMonitorApp::LoadConfig()
 	m_notify_interval = ini.GetInt(_T("other"), _T("notify_interval"), 60);
 	m_exit_when_start_by_restart_manager = ini.GetBool(_T("other"), _T("exit_when_start_by_restart_manager"), true);
 	m_debug_log = ini.GetBool(_T("other"), _T("debug_log"), false);
+	//由于Win7系统中设置任务栏窗口透明色会导致任务栏窗口不可见，因此默认在Win7中禁用透明色的设定
+	m_taksbar_transparent_color_enable = ini.GetBool(L"other", L"taksbar_transparent_color_enable", !m_win_version.IsWindows7());
 }
 
 void CTrafficMonitorApp::SaveConfig()
@@ -195,6 +200,7 @@ void CTrafficMonitorApp::SaveConfig()
 
 	//任务栏窗口设置
 	ini.WriteInt(L"task_bar", L"task_bar_back_color", m_taskbar_data.back_color);
+	ini.WriteInt(L"task_bar", L"transparent_color", m_taskbar_data.transparent_color);
 	ini.WriteIntArray(L"task_bar", L"task_bar_text_color", (int*)m_taskbar_data.text_colors, TASKBAR_COLOR_NUM);
 	ini.WriteBool(L"task_bar", L"specify_each_item_color", m_taskbar_data.specify_each_item_color);
 	ini.WriteBool(L"task_bar", L"task_bar_show_cpu_memory", m_cfg_data.m_tbar_show_cpu_memory);
@@ -225,6 +231,7 @@ void CTrafficMonitorApp::SaveConfig()
 	ini.WriteBool(_T("other"), _T("no_multistart_warning"), m_no_multistart_warning);
 	ini.WriteBool(_T("other"), _T("exit_when_start_by_restart_manager"), m_exit_when_start_by_restart_manager);
 	ini.WriteInt(_T("other"), _T("notify_interval"), m_notify_interval);
+	ini.WriteBool(_T("other"), _T("taksbar_transparent_color_enable"), m_taksbar_transparent_color_enable);
 
 	ini.WriteString(L"app", L"version", VERSION);
 
@@ -310,12 +317,16 @@ void CTrafficMonitorApp::CheckUpdate(bool message)
 	wstring version;		//程序版本
 	wstring link;			//下载链接
 	CString contents_zh_cn;	//更新内容（简体中文）
-	CString contents_en;	//更新内容（Englisg）
+	CString contents_en;	//更新内容（English）
 	CString contents_zh_tw;	//更新内容（繁体中文）
 	CSimpleXML version_xml;
 	version_xml.LoadXMLContentDirect(version_info);
 	version = version_xml.GetNode(L"version");
+#ifdef _M_X64
+	link = version_xml.GetNode(L"link_x64");
+#else
 	link = version_xml.GetNode(L"link");
+#endif
 	contents_zh_cn = version_xml.GetNode(L"contents_zh_cn", L"update_contents").c_str();
 	contents_en = version_xml.GetNode(L"contents_en", L"update_contents").c_str();
 	contents_zh_tw = version_xml.GetNode(L"contents_zh_tw", L"update_contents").c_str();
@@ -415,6 +426,23 @@ bool CTrafficMonitorApp::GetAutoRun()
 	{
 		return false;		//没有找到“TrafficMonitor”键，返回false
 	}
+}
+
+CString CTrafficMonitorApp::GetSystemInfoString()
+{
+	CString info;
+	info += _T("System Info:\r\n");
+
+	CString strTmp;
+	strTmp.Format(_T("Windows Version: %d.%d build %d\r\n"), m_win_version.GetMajorVersion(),
+		m_win_version.GetMinorVersion(), m_win_version.GetBuildNumber());
+	info += strTmp;
+
+	strTmp.Format(_T("DPI: %d"), m_dpi);
+	info += strTmp;
+	info += _T("\r\n");
+
+	return info;
 }
 
 
@@ -549,10 +577,12 @@ BOOL CTrafficMonitorApp::InitInstance()
 	SetRegistryKey(_T("应用程序向导生成的本地应用程序"));
 
 	//启动时检查更新
+#ifndef _DEBUG		//DEBUG下不在启动时检查更新
 	if (m_general_data.check_update_when_start)
 	{
 		m_pUpdateThread = AfxBeginThread(CheckUpdateThreadFunc, NULL);
 	}
+#endif // !_DEBUG
 
 	CTrafficMonitorDlg dlg;
 	m_pMainWnd = &dlg;
